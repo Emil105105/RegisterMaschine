@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Registermaschinensimulationsprogramm</title>
+  </head>
+  <!--
+  This is free and unencumbered software released into the public domain.
+
+  Anyone is free to copy, modify, publish, use, compile, sell, or
+  distribute this software, either in source code form or as a compiled
+  binary, for any purpose, commercial or non-commercial, and by any
+  means.
+
+  In jurisdictions that recognize copyright laws, the author or authors
+  of this software dedicate any and all copyright interest in the
+  software to the public domain. We make this dedication for the benefit
+  of the public at large and to the detriment of our heirs and
+  successors. We intend this dedication to be an overt act of
+  relinquishment in perpetuity of all present and future rights to this
+  software under copyright law.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+  OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+  OTHER DEALINGS IN THE SOFTWARE.
+
+  For more information, please refer to <http://unlicense.org/>
+  -->
+  <style type="text/css">
+      html, body{
+        padding:0;
+        margin:2em;
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 100%;
+      }
+      .box {
+        float: left;
+        width: 48%;
+      }
+      .editor{
+        position:relative;
+        left:0%;
+      }
+      .state{
+        position:relative;
+        left:20%;
+      }
+      .btn{
+        display:inline-block;
+        position:relative
+        float: left;
+      }
+      .left{
+        display:inline-block;
+        position:relative
+        float: left;
+      }
+  </style>
+  <script type="text/javascript">
+    var registers = [];
+    var interrupt = false;
+    function $(n) {
+      return document.getElementById(n);
+    };
+    function sleep(time){
+      return new Promise(resolve => setTimeout(resolve, time));
+    };
+    function l(n) {
+      console.log(n);
+    };
+    function is_int(n) {
+      return !isNaN(n) && (function(x) { return (x | 0) === x; })(parseFloat(n));
+    };
+    async function run() {
+      let _code = $("editor").value.split('\n');
+      let code =[]
+      for (let i = 0; i < _code.length; i ++) {
+        code.push(_code[i].split(' '))
+      }
+      let app = [['PAS', 0, 1]];
+      for (let i = 0; i < code.length; i++){
+        if(code.length > 0){
+          if(code[i][0][0] != '#' && is_int(code[i][0])){
+            if(code[i][1].toLowerCase() == 'inc' && is_int(code[i][2]) && is_int(code[i][3])){
+              let x = Number(code[i][0]);
+              let y = Number(code[i][2]);
+              let z = Number(code[i][3]);
+              if(app.length < x + 1){
+                for(let j = app.length; j < x; j++){
+                  app.push(['PAS', 0, j]);
+                };
+                app.push(['INC', y, z]);
+              } else {
+                app[x] = ['INC', y, z];
+              };
+            } else if (code[i][1].toLowerCase() == 'deb' && is_int(code[i][2]) && is_int(code[i][3]) && is_int(code[i][4])) {
+              let x = Number(code[i][0]);
+              let y = Number(code[i][2]);
+              let z = Number(code[i][3]);
+              let w = Number(code[i][4]);
+              if(app.length < x + 1){
+                for(let j = app.length; j < x; j++){
+                  app.push(['PAS', 0, j]);
+                };
+                app.push(['DEB', y, z, w]);
+              } else {
+                app[x] = ['DEB', y, z, w];
+              };
+            } else if (code[i][1].toLowerCase() == 'end') {
+              let x = Number(code[i][0]);
+              if(app.length < (x + 1)){
+                for(let j = app.length; j < x; j++){
+                  app.push(['PAS', 0, j]);
+                };
+                app.push(['END']);
+              } else {
+                app[x] = ['END'];
+              };
+            } else {
+              alert('Syntax Fehler in Zeile ' + (i + 1).toString());
+              update();
+              return 0;
+            };
+          };
+        };
+      };
+      let loop = true;
+      let cur = 1;
+      while (loop) {
+        if (cur >= app.length) {
+          alert('Undefinierter Befehl: ' + cur.toString());
+          update();
+          return 0;
+        };
+        await sleep(Math.max(0, Math.min(100, Number($("speed").value))) * 100);
+        $('cur_cmd').innerHTML = cur.toString();
+        if (app[cur][0] == 'INC') {
+          if (registers.length < app[cur][1] + 2) {
+            for (let j = registers.length; j < app[cur][1] + 1; j++) {
+              registers.push(0);
+            };
+          };
+          registers[app[cur][1]]++;
+          cur = app[cur][2];
+        } else if (app[cur][0] == 'DEB') {
+          if (registers.length < app[cur][1] + 2) {
+            for (let j = registers.length; j < app[cur][1] + 1; j++) {
+              registers.push(0);
+            };
+            registers.push(0);
+            cur = app[cur][3];
+          } else {
+            if (registers[app[cur][1]] == 0) {
+              cur = app[cur][3];
+            } else {
+              registers[app[cur][1]]--;
+              cur = app[cur][2];
+            }
+          };
+        } else if (app[cur][0] == 'PAS') {
+          /* cur = app[cur][2]; */
+          alert('Undefinierter Befehl: ' + cur.toString());
+          update();
+          $('cur_cmd').innerHTML = '';
+          return 0;
+        } else if (app[cur][0] == 'END') {
+          alert('Erfolgreich beendet');
+          loop = false;
+          $('cur_cmd').innerHTML = '';
+        };
+        update();
+        if (interrupt) {
+          interrupt = false;
+          $('cur_cmd').innerHTML = '';
+          return 0;
+        };
+      };
+    };
+    function _reset() {
+      for (let i = 0; i < registers.length; i++) {
+        registers[i] = 0;
+      };
+      update();
+    };
+    function update() {
+      var o = '';
+      for (let i = 0; i < registers.length; i++) {
+        if (registers[i] != 0){
+          o += '<li>' + i.toString() + ': ' + registers[i].toString() + '</li>';
+        };
+      };
+      $('states').innerHTML = o;
+    };
+    function change() {
+      let index = prompt('Register Index: ');
+      if (is_int(index)) {
+        let value = prompt('Neuer Wert: ');
+        if (is_int(value)) {
+          if (registers.length < Number(index) + 2) {
+            for (let j = registers.length; j < Number(index) + 1; j++) {
+              registers.push(0);
+            };
+          };
+          registers[Number(index)] = Number(value);
+          update();
+        } else {
+          alert('Unbekannter Wert: ' + value);
+        };
+      } else {
+        alert('Unbekannter Index: ' + index);
+      };
+    };
+  </script>
+  <body>
+    <h1>Registermaschinensimulationsprogramm</h1>
+    <div class="buttons">
+      <button type="button" id="run_btn" onclick="run()" class="btn">Ausführen</button>
+      <button type="button" onclick="interrupt = true" class="btn">Abbrechen</button>
+      <p class="left">&ensp;Geschwindigkeit(100ms):</p>
+      <input type="number" step="1" name="" value="1" id="speed" style="width: 3em" class="left">
+      <button type="button" id="reset_btn" onclick="_reset()" class="btn">Register zurücksetzen</button>
+      <button type="button" onclick="change()" class="btn">Register bearbeiten</button>
+      <p class="left">Aktueller Befehl: <span id="cur_cmd"></span> </p>
+    </div>
+    <div class="editor box">
+      <textarea name="Text1" cols="128" rows="48" id="editor"></textarea>
+    </div>
+    <div class="state box">
+      <ul start="0" id="states">
+      </ul>
+    </div>
+  </body>
+</html>
